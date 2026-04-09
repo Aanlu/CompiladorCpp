@@ -2,152 +2,246 @@
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
+#include <cctype>
 
-// Constructor: Ingesta de código fuente y carga dinámica de la matriz
-Lexer::Lexer(std::string fuente, std::string rutaMatriz) : codigo(fuente), pos(0) {
+Lexer::Lexer(std::string fuente,
+    std::string rutaMatriz,
+    std::string rutaNombres,
+    std::string rutaEstados,
+    std::string rutaChars,
+    std::string rutaKeywords)
+    : codigo(fuente), pos(0), lineaActual(1), colActual(1),
+    colAlpha(0), colDigito(1), colEspacio(22) // Valores por defecto
+{
+    cargarNombresTokens(rutaNombres);
     cargarMatriz(rutaMatriz);
+    cargarEstadosTokens(rutaEstados);
+    cargarCharColumnas(rutaChars);
+    cargarKeywords(rutaKeywords);
 }
 
-// Lógica de inyección de dependencias de datos
-void Lexer::cargarMatriz(const std::string& rutaArchivo) {
-    std::ifstream archivo(rutaArchivo);
-    if (!archivo.is_open()) {
-        throw std::runtime_error("Error critico: No se pudo abrir el archivo de transiciones: " + rutaArchivo);
-    }
-
+void Lexer::cargarNombresTokens(const std::string& ruta) {
+    std::ifstream archivo(ruta);
+    if (!archivo.is_open()) throw std::runtime_error("No se pudo abrir: " + ruta);
     std::string linea;
+    bool primera = true;
     while (std::getline(archivo, linea)) {
+        if (primera) { primera = false; continue; }
+        std::stringstream ss(linea);
+        std::string nombre, sValor;
+        std::getline(ss, nombre, ',');
+        std::getline(ss, sValor, ',');
+        nombreATipo[nombre] = static_cast<TipoToken>(std::stoi(sValor));
+    }
+}
+
+void Lexer::cargarMatriz(const std::string& ruta) {
+    std::ifstream archivo(ruta);
+    if (!archivo.is_open()) throw std::runtime_error("No se pudo abrir: " + ruta);
+    std::string linea;
+    bool primera = true;
+    while (std::getline(archivo, linea)) {
+        if (primera) { primera = false; continue; }
         std::vector<int> fila;
         std::stringstream ss(linea);
         std::string valor;
-
-        // Parseo de valores separados por coma
+        bool primeraCol = true;
         while (std::getline(ss, valor, ',')) {
+            if (primeraCol) { primeraCol = false; continue; }
             fila.push_back(std::stoi(valor));
         }
         matriz.push_back(fila);
     }
-    archivo.close();
+}
+
+void Lexer::cargarEstadosTokens(const std::string& ruta) {
+    std::ifstream archivo(ruta);
+    if (!archivo.is_open()) throw std::runtime_error("No se pudo abrir: " + ruta);
+    std::string linea;
+    bool primera = true;
+    while (std::getline(archivo, linea)) {
+        if (primera) { primera = false; continue; }
+        std::stringstream ss(linea);
+        std::string sEstado, nombre;
+        std::getline(ss, sEstado, ',');
+        std::getline(ss, nombre, ',');
+
+        if (nombreATipo.count(nombre)) estadoATipo[std::stoi(sEstado)] = nombreATipo[nombre];
+        else throw std::runtime_error("Token desconocido en estados_tokens.csv: " + nombre);
+    }
+}
+
+void Lexer::cargarCharColumnas(const std::string& ruta) {
+    std::ifstream archivo(ruta);
+    if (!archivo.is_open()) throw std::runtime_error("No se pudo abrir: " + ruta);
+    std::string linea;
+    bool primera = true;
+    while (std::getline(archivo, linea)) {
+        if (primera) { primera = false; continue; }
+        std::stringstream ss(linea);
+        std::string sChar, sCol;
+        std::getline(ss, sChar, ',');
+        std::getline(ss, sCol, ',');
+        if (!sChar.empty()) {
+            // Guardamos las etiquetas dinamicas
+            if (sChar == "[ALPHA]") colAlpha = std::stoi(sCol);
+            else if (sChar == "[DIGITO]") colDigito = std::stoi(sCol);
+            else if (sChar == "[ESPACIO]") colEspacio = std::stoi(sCol);
+            else charAColumna[sChar] = std::stoi(sCol);
+        }
+    }
+}
+
+void Lexer::cargarKeywords(const std::string& ruta) {
+    std::ifstream archivo(ruta);
+    if (!archivo.is_open()) throw std::runtime_error("No se pudo abrir: " + ruta);
+    std::string linea;
+    bool primera = true;
+    while (std::getline(archivo, linea)) {
+        if (primera) { primera = false; continue; }
+        std::stringstream ss(linea);
+        std::string lexema, nombre;
+        std::getline(ss, lexema, ',');
+        std::getline(ss, nombre, ',');
+
+        if (nombreATipo.count(nombre)) diccionario[lexema] = nombreATipo[nombre];
+        else throw std::runtime_error("Token desconocido en keywords.csv: " + nombre);
+    }
 }
 
 int Lexer::obtenerColumna(char c) {
-    if (isalpha(c) || c == '_') return 0;
-    if (isdigit(c)) return 1;
-    if (c == '.') return 2;
-    if (c == '"') return 3;
-    if (c == '+') return 4;
-    if (c == '-') return 5;
-    if (c == '/') return 6;
-    if (c == '*') return 7;
-    if (c == '=') return 8;
-    if (c == '!') return 9;
+    if (isalpha(c) || c == '_') return colAlpha;
+    if (isdigit(c))             return colDigito;
+    if (isspace(c))             return colEspacio;
 
-    std::string simples = "[](){}&|^~><";
-    if (simples.find(c) != std::string::npos) return 10;
+    std::string s(1, c);
+    auto it = charAColumna.find(s);
+    if (it != charAColumna.end()) return it->second;
 
-    if (isspace(c)) return 11;
-    return 12;
+    return 23; // Otros
 }
 
 TipoToken Lexer::obtenerTipoPorEstado(int estado) {
-    switch (estado) {
-    case 1: return ID; case 2: return ENTERO; case 4: return DECIMAL;
-    case 6: return CADENA; case 7: return MAS; case 8: return INCREMENTO;
-    case 9: return MENOS; case 10: return DECREMENTO; case 11: return DIVISION;
-    case 14: return ASIGNACION; case 15: return IGUALDAD; case 17: return DESIGUALDAD;
-    case 18: return SIMBOLO; case 19: return MULTIPLICACION;
-    default: return ERROR_LEX;
+    auto it = estadoATipo.find(estado);
+    if (it != estadoATipo.end()) return it->second;
+    return ERROR_LEX;
+}
+
+// Avanza los contadores de linea y columna de manera precisa
+void Lexer::avanzarPosicion(size_t inicio, size_t fin) {
+    for (size_t i = inicio; i < fin; i++) {
+        if (codigo[i] == '\n') {
+            lineaActual++;
+            colActual = 1;
+        }
+        else {
+            colActual++;
+        }
     }
 }
 
 Token Lexer::siguienteToken() {
-    if (pos >= codigo.length()) return { FIN, "EOF" };
+    if (pos >= codigo.length()) return { FIN, "EOF", lineaActual, colActual };
 
-    int estadoActual = 0;
-    int ultimoEstadoAceptado = -1;
+    int    estadoActual = 0;
+    int    ultimoEstadoAceptado = -1;
+    size_t posInicial = pos;
     size_t posGuardada = pos;
-    std::string lexema = "";
 
-    // Ciclo principal de lectura del autómata
+    // Guardamos la linea y columna al inicio del token
+    int startLinea = lineaActual;
+    int startCol = colActual;
+
     while (pos < codigo.length()) {
         char c = codigo[pos];
-        int col = obtenerColumna(c);
-        int sigEstado = matriz[estadoActual][col];
+        int  col = obtenerColumna(c);
+        int  sigEstado = matriz[estadoActual][col];
 
-        // Manejo de intercepción: Comentario de línea
-        if (sigEstado == 12) {
-            lexema += c;
+        // Validamos dinamicamente si es un comentario
+        TipoToken tipoSig = obtenerTipoPorEstado(sigEstado);
+
+        if (tipoSig == COMENTARIO_LINEA && estadoActual == 11) { // 11 es division
             pos++;
-            while (pos < codigo.length() && codigo[pos] != '\n') {
-                if (codigo[pos] != '\r') lexema += codigo[pos];
-                pos++;
-            }
-            return { COMENTARIO_LINEA, lexema };
+            while (pos < codigo.length() && codigo[pos] != '\n') pos++;
+            std::string lexema = codigo.substr(posInicial, pos - posInicial);
+            avanzarPosicion(posInicial, pos);
+            return { COMENTARIO_LINEA, lexema, startLinea, startCol };
         }
 
-        // Manejo de intercepción: Comentario de bloque
-        if (sigEstado == 13) {
-            lexema += c;
+        if (tipoSig == COMENTARIO_BLOQUE && estadoActual == 11) {
             pos++;
             bool cerrado = false;
             while (pos < codigo.length()) {
-                lexema += codigo[pos];
                 if (codigo[pos] == '*' && pos + 1 < codigo.length() && codigo[pos + 1] == '/') {
-                    lexema += '/';
-                    pos += 2;
-                    cerrado = true;
-                    break;
+                    pos += 2; cerrado = true; break;
                 }
                 pos++;
             }
-            if (!cerrado) return { ERROR_LEX, "Comentario no cerrado: " + lexema };
-            return { COMENTARIO_BLOQUE, lexema };
+            std::string lexema = codigo.substr(posInicial, pos - posInicial);
+            avanzarPosicion(posInicial, pos);
+            if (!cerrado) return { ERROR_LEX, "Comentario no cerrado: " + lexema, startLinea, startCol };
+            return { COMENTARIO_BLOQUE, lexema, startLinea, startCol };
         }
 
-        // Condición de salida
-        if (sigEstado == -1) break;
+        if (sigEstado == -1) break; // Transicion invalida
 
-        // Si el autómata está en inicio y lee un espacio/salto de línea, 
-        // el estado sigue siendo 0. Avanzamos, pero NO concatenamos.
         if (estadoActual == 0 && sigEstado == 0) {
+            // Absorber espacios sin crear tokens
+            avanzarPosicion(pos, pos + 1);
             pos++;
+            posInicial = pos;
+            startLinea = lineaActual;
+            startCol = colActual;
             continue;
         }
 
-        // Consumo del carácter y actualización del estado
-        lexema += c;
         estadoActual = sigEstado;
         pos++;
 
-        // Validación de coincidencia más larga (Longest Match)
-        if (estadoActual == 1 || estadoActual == 2 || estadoActual == 4 ||
-            estadoActual == 6 || estadoActual == 7 || estadoActual == 8 ||
-            estadoActual == 9 || estadoActual == 10 || estadoActual == 11 ||
-            estadoActual == 14 || estadoActual == 15 || estadoActual == 17 ||
-            estadoActual == 18 || estadoActual == 19) {
+        if (estadoATipo.count(estadoActual)) {
             ultimoEstadoAceptado = estadoActual;
             posGuardada = pos;
         }
     }
 
-    // Manejo de error léxico
-    if (ultimoEstadoAceptado == -1) {
-        lexema = codigo[pos];
-        pos++;
-        return { ERROR_LEX, lexema };
+    if (pos == posInicial && pos >= codigo.length()) {
+        return { FIN, "EOF", startLinea, startCol };
     }
 
-    // Backtracking
+    // Ningun estado de aceptacion alcanzado (MAXIMAL MUNCH APLICADO)
+    if (ultimoEstadoAceptado == -1) {
+        std::string lexemaCorrupto = codigo.substr(posInicial, pos - posInicial);
+        if (lexemaCorrupto.empty()) { // Si se estanco en el primer caracter
+            pos = posInicial + 1;
+            lexemaCorrupto = std::string(1, codigo[posInicial]);
+        }
+        avanzarPosicion(posInicial, pos);
+        return { ERROR_LEX, lexemaCorrupto, startLinea, startCol };
+    }
+
+    // Regresar a estado seguro
     pos = posGuardada;
-    lexema = lexema.substr(0, pos - (pos - lexema.length()));
+    std::string lexema = codigo.substr(posInicial, pos - posInicial);
+
+    // Actualizamos contadores oficiales solo sobre lo que procesamos con exito
+    avanzarPosicion(posInicial, pos);
 
     TipoToken tipoFinal = obtenerTipoPorEstado(ultimoEstadoAceptado);
 
-    // Resolución de Identificadores contra el diccionario
-    if (tipoFinal == ID) {
-        if (diccionario.count(lexema)) {
-            tipoFinal = diccionario[lexema];
+    if (tipoFinal == ID && diccionario.count(lexema))
+        tipoFinal = diccionario[lexema];
+
+    return { tipoFinal, lexema, startLinea, startCol };
+}
+
+std::vector<Token> Lexer::generarListaTokens() {
+    std::vector<Token> lista;
+    Token tokenActual;
+    do {
+        tokenActual = siguienteToken();
+        if (tokenActual.tipo != FIN) {
+            lista.push_back(tokenActual);
         }
-    }
-    return { tipoFinal, lexema };
+    } while (tokenActual.tipo != FIN);
+    return lista;
 }

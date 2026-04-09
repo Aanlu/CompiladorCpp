@@ -57,5 +57,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="matriz_transiciones.csv" />
+    <None Include="nombres_tokens.csv" />
+    <None Include="estados_tokens.csv" />
+    <None Include="char_columnas.csv" />
+    <None Include="keywords.csv" />
   </ItemGroup>
 </Project>

@@ -2,30 +2,44 @@
 #include "Tokens.h"
 #include <vector>
 #include <unordered_map>
+#include <string>
 
 class Lexer {
 private:
     std::string codigo;
     size_t pos;
+    int lineaActual;
+    int colActual;
 
-    // Matriz dinámica en memoria
+    // Variables dinamicas para columnas especiales
+    int colAlpha;
+    int colDigito;
+    int colEspacio;
+
     std::vector<std::vector<int>> matriz;
+    std::unordered_map<std::string, TipoToken> nombreATipo;
+    std::unordered_map<int, TipoToken> estadoATipo;
+    std::unordered_map<std::string, int> charAColumna; // Ahora es string para aceptar etiquetas
+    std::unordered_map<std::string, TipoToken> diccionario;
 
-    // Diccionario mapeado a tokens específicos
-    std::unordered_map<std::string, TipoToken> diccionario = {
-        {"entero", KW_ENTERO}, {"clase", KW_CLASE}, {"interruptor", KW_INTERRUPTOR},
-        {"caso", KW_CASO}, {"caracter", KW_CARACTER}, {"cadena", KW_CADENA_TIPO},
-        {"si", KW_SI}, {"de_lo_contrario", KW_SINO}, {"demas", KW_DEMAS},
-        {"mientras", KW_MIENTRAS}, {"hacer", KW_HACER}, {"quebrar", KW_QUEBRAR},
-        {"verdadero", KW_VERDADERO}, {"falso", KW_FALSO}, {"bool", KW_BOOL}, {"doble", KW_DOBLE},
-        {"Imprimir", FUNCION_PROPIA}, {"Leer", FUNCION_PROPIA}, {"LimpiarPantalla", FUNCION_PROPIA}
-    };
+    void cargarNombresTokens(const std::string& ruta);
+    void cargarMatriz(const std::string& ruta);
+    void cargarEstadosTokens(const std::string& ruta);
+    void cargarCharColumnas(const std::string& ruta);
+    void cargarKeywords(const std::string& ruta);
 
-    int obtenerColumna(char c);
+    int       obtenerColumna(char c);
     TipoToken obtenerTipoPorEstado(int estado);
-    void cargarMatriz(const std::string& rutaArchivo);
+    Token     siguienteToken();
+    void      avanzarPosicion(size_t inicio, size_t fin);
 
 public:
-    Lexer(std::string fuente, std::string rutaMatriz);
-    Token siguienteToken();
+    Lexer(std::string fuente,
+        std::string rutaMatriz,
+        std::string rutaNombres,
+        std::string rutaEstados,
+        std::string rutaChars,
+        std::string rutaKeywords);
+
+    std::vector<Token> generarListaTokens();
 };
