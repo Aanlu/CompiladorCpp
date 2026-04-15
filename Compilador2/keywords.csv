@@ -15,6 +15,6 @@ verdadero,KW_VERDADERO
 falso,KW_FALSO
 bool,KW_BOOL
 doble,KW_DOBLE
-Imprimir,FUNCION_PROPIA
-Leer,FUNCION_PROPIA
-LimpiarPantalla,FUNCION_PROPIA
+Imprimir,KW_IMPRIMIR
+Leer,KW_LEER
+LimpiarPantalla,KW_LIMPIAR_PANTALLA

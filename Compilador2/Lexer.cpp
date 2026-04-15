@@ -157,10 +157,11 @@ Token Lexer::siguienteToken() {
         int  col = obtenerColumna(c);
         int  sigEstado = matriz[estadoActual][col];
 
-        // Validamos dinamicamente si es un comentario
+        // Validamos dinámicamente si es un comentario
         TipoToken tipoSig = obtenerTipoPorEstado(sigEstado);
 
-        if (tipoSig == COMENTARIO_LINEA && estadoActual == 11) { // 11 es division
+        // Ya no necesitamos saber si venimos del estado 16, la matriz ya lo validó
+        if (tipoSig == COMENTARIO_LINEA) {
             pos++;
             while (pos < codigo.length() && codigo[pos] != '\n') pos++;
             std::string lexema = codigo.substr(posInicial, pos - posInicial);
@@ -168,7 +169,7 @@ Token Lexer::siguienteToken() {
             return { COMENTARIO_LINEA, lexema, startLinea, startCol };
         }
 
-        if (tipoSig == COMENTARIO_BLOQUE && estadoActual == 11) {
+        if (tipoSig == COMENTARIO_BLOQUE) {
             pos++;
             bool cerrado = false;
             while (pos < codigo.length()) {
@@ -243,5 +244,6 @@ std::vector<Token> Lexer::generarListaTokens() {
             lista.push_back(tokenActual);
         }
     } while (tokenActual.tipo != FIN);
+
     return lista;
 }
