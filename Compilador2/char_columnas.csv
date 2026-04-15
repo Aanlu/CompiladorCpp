@@ -24,4 +24,5 @@ char,columna
 ~,22
 ^,23
 [ESPACIO],24
-[OTROS],25
+[SALTO_LINEA],25
+[OTROS],26

@@ -15,6 +15,8 @@ private:
     int colAlpha;
     int colDigito;
     int colEspacio;
+    int colSaltoLinea;
+    int colOtros;
 
     std::vector<std::vector<int>> matriz;
     std::unordered_map<std::string, TipoToken> nombreATipo;
